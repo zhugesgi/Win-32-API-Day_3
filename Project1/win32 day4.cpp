@@ -7,31 +7,41 @@
 #define ID_DOWN_TIMER 1
 #define ID_CHECK_TIMER 2
 
-struct Block{
-	int space[4][4];
-}block[7][4];
+//struct Block{
+//	int space[4][4];
+//}block[7][4];
 
+//int g_score = 0;//记录分数
 int g_xIndex = 3;//记录随机块所在空间的左上角x
 int g_yIndex = 0;//记录随机块所在空间的左上角y
+
 int g_blockIndex = 0;//记录当前的俄罗斯方块
 int g_RussBlocks[2][4] = { 0 };
 int g_backgroundArray[20][10] = {0};
 
 void StopDown();
-void BlockDown();
+void BlockDown(HWND hwnd);
 void onChangeProc(HWND hWnd);
+
+
 int canSquareChange();//判断是否可以改变方块
 int canLongSquareChange();//判断是否可以改变长方形方块
-void OnPaint(HDC hdc);//绘制背景
+
+void OnPaintText(HDC hdc, PAINTSTRUCT* ps);
+void OnPaint(HDC hdc,PAINTSTRUCT* ps);//绘制背景
 void DrawBlock(HDC hdc);//绘制俄罗斯方块
 void OnCreate();//随机生成俄罗斯方块
 void CopyBlock();//复制俄罗斯方块到背景
 void OnTimer(HWND hWnd);//定时器
-void LeftMove();//左移俄罗斯方块
-void RightMove();//右移俄罗斯方块
-void DownMove();//下移俄罗斯方块
-void change0To4SquareShape();//改变0方块为4方块
-void changeLongSquareShape();//改变长方形方块
+void LeftMove(HWND hwnd);//左移俄罗斯方块
+void RightMove(HWND hwnd);//右移俄罗斯方块
+void DownMove(HWND hwnd);//下移俄罗斯方块
+
+
+void change0To4SquareShape(HWND hWnd);//改变0方块为4方块
+void changeLongSquareShape(HWND hWnd);//改变长方形方块
+
+
 int IsGameOver();//判断游戏是否结束
 void Check_If_Delete_Row(HWND hWnd);
 BOOL Check_Buttom();//判断是否到达底部
@@ -51,15 +61,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			SetTimer(hWnd, ID_CHECK_TIMER, 1000, NULL);
 			break;
 		case VK_LEFT:
-			LeftMove();
+			LeftMove(hWnd);
 			break;
 		case VK_RIGHT:
-			RightMove();
+			RightMove(hWnd);
 			break;
 		case VK_UP:
 			break;
 		case VK_DOWN:
-			DownMove();
+			DownMove(hWnd);
 			break;
 		case VK_SPACE:
 			onChangeProc(hWnd);
@@ -83,7 +93,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		break;
 	case WM_PAINT:
 		hdc = BeginPaint(hWnd, &ps);
-		OnPaint(hdc);
+		OnPaint(hdc, &ps);
+		OnPaintText(hdc,&ps);
 		EndPaint(hWnd, &ps);
 		break;
 	case WM_CLOSE:
@@ -114,7 +125,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	RegisterClassEx(&wc);//将窗口类注册到系统
 
 	//创建窗口
-	HWND hWnd = CreateWindowEx(0, "MyWindowClass", "MyWindow", WS_OVERLAPPEDWINDOW, 200, 200, 500, 640, NULL, NULL, hInstance, NULL);
+	HWND hWnd = CreateWindowEx(0, "MyWindowClass", "MyWindow", WS_OVERLAPPEDWINDOW&~WS_MAXIMIZEBOX&~WS_MINIMIZEBOX&~WS_SIZEBOX, 200, 200, 500, 640, NULL, NULL, hInstance, NULL);
 	//显示窗口
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
@@ -138,7 +149,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	return 0;
 }
 
-void OnPaint(HDC hdc) {
+void OnPaint(HDC hdc, PAINTSTRUCT* ps) {
 	
 	//双缓冲区
 	HDC hdcMem = CreateCompatibleDC(hdc);
@@ -153,7 +164,16 @@ void OnPaint(HDC hdc) {
 	DeleteObject(hBackmap);
 }
 void DrawBlock(HDC hdc) {
-	Rectangle(hdc, 0,0,300,600);
+	//绘制背景
+	Rectangle(hdc, 300, 0, 500, 600);
+	HBRUSH secondbrush = CreateSolidBrush(RGB(220,220,220));
+	HBRUSH brush = (HBRUSH)SelectObject(hdc, secondbrush);
+	Rectangle(hdc, 0, 0, 300, 600);
+	SelectObject(hdc, brush);
+	DeleteObject(secondbrush);
+	//绘制背景
+	HBRUSH hbrush=CreateSolidBrush(RGB(0,200,180));
+	HBRUSH oldbrush= (HBRUSH)SelectObject(hdc,hbrush);
 	for (int i = 0; i < 20; i++) {
 		for (int j = 0; j < 10; j++) {
 			if (g_backgroundArray[i][j] == 1) {
@@ -164,11 +184,13 @@ void DrawBlock(HDC hdc) {
 			}
 		}
 	}
+	SelectObject(hdc,oldbrush);
+	DeleteObject(hbrush);
 }
 void OnCreate() {
 	srand(time(NULL));
 	int shape = rand() % 7;
-	g_blockIndex = shape;
+	g_blockIndex = shape;//随机产生六种状况的方块
 	switch (shape) {
 	case 0:
 		//1 1 0 0
@@ -248,13 +270,6 @@ void CopyBlock() {
 	}
 }
 void OnTimer(HWND hWnd) {
-	if (IsGameOver()) {
-		KillTimer(hWnd, ID_DOWN_TIMER);
-		KillTimer(hWnd, ID_CHECK_TIMER);
-		MessageBox(hWnd, "Game Over!", "Game Over", MB_OK);
-		SendMessage(hWnd, WM_DESTROY, NULL, NULL);
-		return;
-	}
 	if (!Check_Buttom()) 
 	{
 		//停止下落
@@ -262,23 +277,44 @@ void OnTimer(HWND hWnd) {
 		//检查是否有行消除
 		Check_If_Delete_Row(hWnd);
 		//产生新的方块
+		if (IsGameOver()) {
+			KillTimer(hWnd, ID_DOWN_TIMER);
+			KillTimer(hWnd, ID_CHECK_TIMER);
+			MessageBox(hWnd, "Game Over!", "Game Over", MB_OK);
+			SendMessage(hWnd, WM_DESTROY, NULL, NULL);
+			return;
+		}
 		OnCreate();
 	}
 	else 
 	{
-		BlockDown();
+		BlockDown(hWnd);
 	}
 	InvalidateRect(hWnd, NULL, FALSE);//重绘窗口,此时产生WM_PAINT消息,调用OnPaint函数
 }
-void BlockDown() {
-	g_yIndex++;
-	for (int i = 19; i >= 0; i--) {
-		for (int j = 0; j < 10; j++) {
-			if (g_backgroundArray[i][j] == 1) {
-				g_backgroundArray[i+1][j] = 1;
-				g_backgroundArray[i][j] = 0;
+void BlockDown(HWND hwnd) {
+	if (!Check_Buttom())
+	{
+		//停止下落
+		StopDown();
+		InvalidateRect(hwnd, NULL, FALSE);
+		//检查是否有行消除
+		Check_If_Delete_Row(hwnd);
+		//产生新的方块
+		OnCreate();
+		InvalidateRect(hwnd, NULL, FALSE);
+	}
+	else {
+		g_yIndex++;
+		for (int i = 19; i >= 0; i--) {
+			for (int j = 0; j < 10; j++) {
+				if (g_backgroundArray[i][j] == 1) {
+					g_backgroundArray[i + 1][j] = 1;
+					g_backgroundArray[i][j] = 0;
+				}
 			}
 		}
+		InvalidateRect(hwnd, NULL, FALSE);
 	}
 }
 BOOL Check_Buttom() {
@@ -312,7 +348,7 @@ void StopDown() {
 		}
 	}
 }
-void LeftMove() {
+void LeftMove(HWND hwnd) {
 	g_xIndex--;
 	int flag = 0;
 	for (int i = 19; i >= 0; i--) {
@@ -338,8 +374,9 @@ void LeftMove() {
 			}
 		}
 	}
+	InvalidateRect(hwnd, NULL, FALSE);
 }
-void RightMove() {
+void RightMove(HWND hWnd) {
 	g_xIndex++;
 	int flag = 0;
 	for (int i = 19; i >= 0; i--) {
@@ -365,32 +402,47 @@ void RightMove() {
 			}
 		}
 	}
+	InvalidateRect(hWnd, NULL, FALSE);
 }
-void DownMove() {
-	g_yIndex++;
-	int flag = 0;
-	for (int i = 19; i >= 0; i--) {
-		for (int j = 0; j < 10; j++) {
-			if (g_backgroundArray[i][j] == 1) {
-				if (i == 19) {
-					flag = 1;
-					return;
-				}
-				else if (g_backgroundArray[i + 1][j] == 1) {
-					continue;
-				}
-			}
-		}
+void DownMove(HWND hwnd) {
+	if (!Check_Buttom())
+	{
+		//停止下落
+		StopDown();
+		InvalidateRect(hwnd, NULL, FALSE);
+		//检查是否有行消除
+		Check_If_Delete_Row(hwnd);
+		//产生新的方块
+		OnCreate();
+		InvalidateRect(hwnd, NULL, FALSE);
 	}
-	if (flag == 0) {
+	else {
+		g_yIndex++;
+		int flag = 0;
 		for (int i = 19; i >= 0; i--) {
 			for (int j = 0; j < 10; j++) {
 				if (g_backgroundArray[i][j] == 1) {
-					g_backgroundArray[i][j] = 0;
-					g_backgroundArray[i + 1][j] = 1;
+					if (i == 19) {
+						flag = 1;
+						return;
+					}
+					else if (g_backgroundArray[i + 1][j] == 1) {
+						continue;
+					}
 				}
 			}
 		}
+		if (flag == 0) {
+			for (int i = 19; i >= 0; i--) {
+				for (int j = 0; j < 10; j++) {
+					if (g_backgroundArray[i][j] == 1) {
+						g_backgroundArray[i][j] = 0;
+						g_backgroundArray[i + 1][j] = 1;
+					}
+				}
+			}
+		}
+		InvalidateRect(hwnd, NULL, FALSE);
 	}
 }
 void Check_If_Delete_Row(HWND hWnd) {
@@ -418,7 +470,7 @@ void Check_If_Delete_Row(HWND hWnd) {
 		}
 	}
 	if (count > 0) {
-		InvalidateRect(hWnd, NULL, FALSE);
+		InvalidateRect(hWnd,NULL, FALSE);
 	}
 }
 void onChangeProc(HWND hWnd)
@@ -434,7 +486,7 @@ void onChangeProc(HWND hWnd)
 	case 4:
 		if (canSquareChange())
 		{
-			change0To4SquareShape();
+			change0To4SquareShape(hWnd);
 		}
 		else
 		{
@@ -445,7 +497,7 @@ void onChangeProc(HWND hWnd)
 		break;
 	case 6://6为长条
 		if (canLongSquareChange())
-			changeLongSquareShape();
+			changeLongSquareShape(hWnd);
 		break;
 	}
 	ReleaseDC(hWnd, hdc);
@@ -511,7 +563,7 @@ int canLongSquareChange()
 
 	return 1;
 }
-void change0To4SquareShape()
+void change0To4SquareShape(HWND hWnd)
 {
 	char tempArray[3][3] = { 0 };
 	//将3*3数组从背景中提出来
@@ -531,8 +583,9 @@ void change0To4SquareShape()
 			g_backgroundArray[g_yIndex + i][g_xIndex + j] = tempArray[2 - j][i];
 		}
 	}
+	InvalidateRect(hWnd, NULL, FALSE);
 }
-void changeLongSquareShape()
+void changeLongSquareShape(HWND hWnd)
 {
 	//横着的情况
 	if (g_backgroundArray[g_yIndex][g_xIndex - 1] == 1)//中心的左边为1，说明横着
@@ -648,6 +701,7 @@ void changeLongSquareShape()
 			g_backgroundArray[g_yIndex][g_xIndex + 2] = 1;
 		}
 	}
+	InvalidateRect(hWnd, NULL, FALSE);
 }
 int IsGameOver()
 {
@@ -659,4 +713,14 @@ int IsGameOver()
 		}
 	}
 	return 0;
+}
+void OnPaintText(HDC hdc,PAINTSTRUCT* ps) {
+	ps->rcPaint.left = 302;
+	ps->rcPaint.top = 50;
+	ps->rcPaint.right = 500;
+	ps->rcPaint.bottom = 400;
+	DrawText(hdc, "Welcom to Tetris\nPress enter to start\n\n\nPress space to pause\nPress up to rotate\nPress down to move down\nPress left and right to move sideways\n"
+		,-1, &ps->rcPaint, 
+		DT_LEFT );
+
 }
